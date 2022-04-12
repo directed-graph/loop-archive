@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package everchanging.loop_archive;
+
+// Next tag: 4
+message SourceSpec {
+  message StorageDevice {
+    // Match based on UUID of storage device.
+    string uuid = 1;
+
+    // Items passed directly to mount -o.
+    repeated string mount_options = 2;
+  }
+
+  // Glob pattern for items to archive to the destination.
+  repeated string patterns = 1;
+
+  // Glob pattern for items to be deleted after `pattern` items have been
+  // archived. Note that items matching `pattern` will be moved, so they will
+  // already be "deleted". This field is for items not in `pattern`, but that
+  // you want to delete (e.g. derived or temp items that you don't need to
+  // archive, but want to delete after archiving items in `pattern`).
+  repeated string delete_patterns = 2;
+
+  oneof location {
+    StorageDevice storage_device = 3;
+  }
+}
+
+// Next tag: 3
+message DestinationSpec {
+  // The size of the loop in bytes.
+  int64 loop_size = 1;
+
+  // The path to archive the looped items.
+  string path = 2;
+}
+
+// A many-to-one relationship between source and destination; each item
+// specified in `source_specs` will be archived into `destination_spec`.
+//
+// Next tag: 3
+message Config {
+  // Destinations to archive items to.
+  DestinationSpec destination_spec = 1;
+
+  // Source to archive items from.
+  repeated SourceSpec source_specs = 2;
+}
