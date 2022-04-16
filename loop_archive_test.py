@@ -1,20 +1,50 @@
+from typing import List
 from unittest import mock
 
+import dataclasses
 import functools
 import os
 import pathlib
-import re
 import subprocess
 import tempfile
 
 from absl.testing import absltest
 from absl.testing import flagsaver
 from absl.testing import parameterized
-from google.protobuf import text_format
-from rules_python.python.runfiles import runfiles
 
 import loop_archive
 import loop_archive_pb2
+
+
+@dataclasses.dataclass
+class TestDirectoryTree:
+  path: pathlib.Path
+  generate_order: List[pathlib.Path]
+
+  # Size in bytes.
+  size: int
+
+
+def _generate_directory_tree(num_items: int = 16) -> TestDirectoryTree:
+  """Generates a directory tree with items for testing."""
+  test_directory_tree = TestDirectoryTree(
+      path=pathlib.Path(tempfile.mkdtemp()),
+      generate_order=[],
+      size=0,
+  )
+  start_time = 0
+  for i in range(num_items):
+    item = test_directory_tree.path / f'file_{i}'
+    with open(item, 'w') as stream:
+      test_directory_tree.size += stream.write('0')
+
+    # Manually set time so each file has different mtimes.
+    os.utime(item, (0, start_time))
+    start_time += 1
+
+    test_directory_tree.generate_order.append(item)
+
+  return test_directory_tree
 
 
 class LoopArchiveTest(parameterized.TestCase):
@@ -87,6 +117,20 @@ class LoopArchiveTest(parameterized.TestCase):
         mount_options)
     mock_umount.assert_called_with(source_path)
     self.assertFalse(source_path.exists())
+
+  def test_get_directory_size(self):
+    """Ensures count is correct."""
+    directory_tree = _generate_directory_tree()
+    self.assertEqual(
+        loop_archive.get_directory_size(directory_tree.path),
+        directory_tree.size)
+
+  def test_make_directory_iterator(self):
+    """Ensures order is correct."""
+    directory_tree = _generate_directory_tree()
+    self.assertEqual(
+        list(loop_archive.make_directory_iterator(directory_tree.path)),
+        directory_tree.generate_order)
 
 
 if __name__ == '__main__':

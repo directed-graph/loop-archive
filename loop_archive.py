@@ -109,3 +109,13 @@ class SourcePathContext:
 
   def __exit__(self, exc_type, exc_value, traceback) -> None:
     self.teardown_source_spec()
+
+
+def get_directory_size(path: pathlib.Path) -> int:
+  """Returns the size of the directory in bytes."""
+  return sum(item.stat().st_size for item in path.rglob('*'))
+
+
+def make_directory_iterator(path: pathlib.Path) -> Iterator[pathlib.Path]:
+  """Returns an interator that iterates from oldest file in directory."""
+  yield from sorted(path.rglob('*'), key=lambda item: item.stat().st_mtime)
