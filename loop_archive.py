@@ -2,6 +2,7 @@ from typing import Iterable, Iterator, Optional
 
 import pathlib
 import subprocess
+import tempfile
 
 from absl import flags
 from absl import logging
@@ -62,3 +63,49 @@ def umount(mount_path: pathlib.Path) -> None:
 
   if process.returncode != 0:
     raise RuntimeError(f'Umount failed for {mount_path}.')
+
+
+class SourcePathContext:
+  """Context Manager for a given SourceSpec.
+
+  Given a SourceSpec, entering this context sets up the path for the source.
+  Exiting the context cleans up the path.
+  """
+
+  def __init__(self, source_spec: loop_archive_pb2.SourceSpec):
+    self.source_spec = source_spec
+    self.source_path = None
+
+  def setup_source_spec(self) -> pathlib.Path:
+    """Sets up SourceSpec to a pathlib.Path."""
+    if self.source_path is not None:
+      raise RuntimeError('Cannot setup; already setup with {self.source_path}.')
+
+    which_location = self.source_spec.WhichOneof('location')
+    if which_location == 'storage_device':
+      storage_device = self.source_spec.storage_device
+      device_path = pathlib.Path(f'/dev/disk/by-uuid/{storage_device.uuid}')
+      mount_options = storage_device.mount_options
+      self.source_path = pathlib.Path(tempfile.mkdtemp())
+      mount(device_path, self.source_path, options=mount_options)
+    else:
+      raise ValueError(f'Unsupported SourceSpec.location: {which_location}')
+
+    return self.source_path
+
+  def teardown_source_spec(self) -> None:
+    """Tears down a SourceSpec; the reverse of setup_source_spec."""
+    which_location = self.source_spec.WhichOneof('location')
+    if which_location == 'storage_device':
+      umount(self.source_path)
+      self.source_path.rmdir()
+    else:
+      raise ValueError(f'Unsupported SourceSpec.location: {which_location}')
+
+    self.source_path = None
+
+  def __enter__(self) -> pathlib.Path:
+    return self.setup_source_spec()
+
+  def __exit__(self, exc_type, exc_value, traceback) -> None:
+    self.teardown_source_spec()
