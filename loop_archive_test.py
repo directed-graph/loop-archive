@@ -189,6 +189,21 @@ class LoopArchiveTest(parameterized.TestCase):
 
     temp_output_dir.cleanup()
 
+  def test_loop_delete(self):
+    """Tests loop deleting items are done correctly."""
+    temp_output_dir = tempfile.TemporaryDirectory()
+    output_dir = pathlib.Path(temp_output_dir.name)
+
+    with DirectoryTreeContext() as directory_tree:
+      # Sets loop_size to only the length of 2 items.
+      loop_archive.loop_delete(
+          directory_tree.path,
+          loop_size=2 * directory_tree.size /
+          len(directory_tree.generate_order))
+      self.assertLen(list(directory_tree.path.glob('*')), 2)
+
+    temp_output_dir.cleanup()
+
 
 if __name__ == '__main__':
   absltest.main()

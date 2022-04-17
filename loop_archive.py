@@ -138,6 +138,18 @@ def archive_move(source_path: pathlib.Path, destination_path: pathlib.Path,
       item.unlink()
 
 
+def loop_delete(destination_path: pathlib.Path, loop_size: int) -> None:
+  """Deletes old items to make more space for archiving."""
+  deletion_iterator = make_directory_iterator(destination_path)
+  while get_directory_size(destination_path) > loop_size:
+    deletion_candidate = next(deletion_iterator)
+    logging.info('Looping (deleting) %s', deletion_candidate)
+    if _DRY_RUN.value or _DRY_RUN_LOOP.value:
+      logging.info('DRY RUN: not deleting, not checking the rest.')
+      break
+    deletion_candidate.unlink()
+
+
 def archive_delete(source_path: pathlib.Path, patterns: Iterable[str]) -> None:
   """Archives items by deleting them."""
   for pattern in patterns:
