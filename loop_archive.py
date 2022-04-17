@@ -88,7 +88,10 @@ class SourcePathContext:
     which_location = self.source_spec.WhichOneof('location')
     if which_location == 'storage_device':
       storage_device = self.source_spec.storage_device
-      device_path = pathlib.Path(f'/dev/disk/by-uuid/{storage_device.uuid}')
+      if not storage_device.path_format:
+        storage_device.path_format = '/dev/disk/by-uuid/%s'
+      device_path = pathlib.Path(storage_device.path_format %
+                                 (storage_device.uuid,))
       mount_options = storage_device.mount_options
       self.source_path = pathlib.Path(tempfile.mkdtemp())
       mount(device_path, self.source_path, options=mount_options)

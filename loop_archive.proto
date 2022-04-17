@@ -10,6 +10,9 @@ message SourceSpec {
 
     // Items passed directly to mount -o.
     repeated string mount_options = 2;
+
+    // Format for the device path. Defaults to /dev/disk/by-uuid/%s.
+    string path_format = 3;
   }
 
   // Glob pattern for items to archive to the destination.
