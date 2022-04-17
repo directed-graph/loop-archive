@@ -137,7 +137,7 @@ def archive_move(source_path: pathlib.Path, destination_path: pathlib.Path,
       if _DRY_RUN.value or _DRY_RUN_LOOP.value:
         logging.info('DRY RUN: not moving.')
         continue
-      shutil.copy(item, destination_path / item.name)
+      shutil.copy2(item, destination_path / item.name)
       item.unlink()
 
 
@@ -162,3 +162,22 @@ def archive_delete(source_path: pathlib.Path, patterns: Iterable[str]) -> None:
         logging.info('DRY RUN: not deleting.')
         continue
       item.unlink()
+
+
+def archive(source_spec: loop_archive_pb2.SourceSpec,
+            destination_spec: loop_archive_pb2.DestinationSpec) -> None:
+  """Archives source_spec to destination_spec."""
+  destination_path = pathlib.Path(destination_spec.path)
+  if not destination_path.exists() or not destination_path.is_dir():
+    raise ValueError('{destination_path} does not exist or is not a directory.')
+
+  with SourcePathContext(source_spec) as source_path:
+    logging.info('Archive moving %s to %s for patterns %s.', source_path,
+                 destination_path, source_spec.patterns)
+    archive_move(source_path, destination_path, source_spec.patterns)
+    logging.info('Loop deleting %s to size %s.', destination_path,
+                 destination_spec.loop_size)
+    loop_delete(destination_path, destination_spec.loop_size)
+    logging.info('Archive deleting %s for patterns %s.', source_path,
+                 source_spec.delete_patterns)
+    archive_delete(source_path, source_spec.delete_patterns)

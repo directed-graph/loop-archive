@@ -176,9 +176,6 @@ class LoopArchiveTest(parameterized.TestCase):
 
   def test_archive_delete(self):
     """Tests archive deleting items are done correctly."""
-    temp_output_dir = tempfile.TemporaryDirectory()
-    output_dir = pathlib.Path(temp_output_dir.name)
-
     with DirectoryTreeContext(suffixes=[f'{i}.MP4' for i in range(5)] +
                               [f'{i}.THM' for i in range(5)]) as directory_tree:
       loop_archive.archive_delete(directory_tree.path, patterns=['*.THM'])
@@ -187,13 +184,8 @@ class LoopArchiveTest(parameterized.TestCase):
           map(lambda p: p.name, directory_tree.path.glob('*')),
           map(lambda p: p.name, directory_tree.generate_order[:5]))
 
-    temp_output_dir.cleanup()
-
   def test_loop_delete(self):
     """Tests loop deleting items are done correctly."""
-    temp_output_dir = tempfile.TemporaryDirectory()
-    output_dir = pathlib.Path(temp_output_dir.name)
-
     with DirectoryTreeContext() as directory_tree:
       # Sets loop_size to only the length of 2 items.
       loop_archive.loop_delete(
@@ -202,7 +194,37 @@ class LoopArchiveTest(parameterized.TestCase):
           len(directory_tree.generate_order))
       self.assertLen(list(directory_tree.path.glob('*')), 2)
 
-    temp_output_dir.cleanup()
+  def test_archive(self):
+    """Simulates an archive operation."""
+    temp_output_dir = tempfile.TemporaryDirectory()
+    output_dir = pathlib.Path(temp_output_dir.name)
+
+    with DirectoryTreeContext(suffixes=[f'{i}.MP4' for i in range(5)] +
+                              [f'{i}.THM' for i in range(5)] +
+                              [f'{i}.LRV' for i in range(5)]) as directory_tree:
+      source_spec = loop_archive_pb2.SourceSpec(
+          storage_device=loop_archive_pb2.SourceSpec.StorageDevice(
+              uuid='test-uuid'),
+          patterns=['*.MP4'],
+          delete_patterns=['*.THM', '*.LRV'],
+      )
+      destination_spec = loop_archive_pb2.DestinationSpec(
+          loop_size=2,
+          path=str(output_dir),
+      )
+
+      # Mock the _run_process operation so mount and umount are noops.
+      with mock.patch.object(
+          loop_archive, 'SourcePathContext',
+          autospec=True) as mock_source_path_context:
+        mock_source_path_context.return_value = directory_tree.path
+        loop_archive.archive(source_spec, destination_spec)
+        self.assertEqual(
+            list(map(lambda p: p.name, output_dir.glob('*'))),
+            ['file3.MP4', 'file4.MP4'])
+        self.assertEmpty(list(directory_tree.path.glob('*')))
+
+      temp_output_dir.cleanup()
 
 
 if __name__ == '__main__':
