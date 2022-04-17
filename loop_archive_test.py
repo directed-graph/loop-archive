@@ -174,6 +174,21 @@ class LoopArchiveTest(parameterized.TestCase):
 
     temp_output_dir.cleanup()
 
+  def test_archive_delete(self):
+    """Tests archive deleting items are done correctly."""
+    temp_output_dir = tempfile.TemporaryDirectory()
+    output_dir = pathlib.Path(temp_output_dir.name)
+
+    with DirectoryTreeContext(suffixes=[f'{i}.MP4' for i in range(5)] +
+                              [f'{i}.THM' for i in range(5)]) as directory_tree:
+      loop_archive.archive_delete(directory_tree.path, patterns=['*.THM'])
+      # Ensures the .THM files are deleted.
+      self.assertCountEqual(
+          map(lambda p: p.name, directory_tree.path.glob('*')),
+          map(lambda p: p.name, directory_tree.generate_order[:5]))
+
+    temp_output_dir.cleanup()
+
 
 if __name__ == '__main__':
   absltest.main()

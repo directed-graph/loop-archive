@@ -121,7 +121,7 @@ def get_directory_size(path: pathlib.Path) -> int:
 
 
 def make_directory_iterator(path: pathlib.Path) -> Iterator[pathlib.Path]:
-  """Returns an interator that iterates from oldest file in directory."""
+  """Returns an iterator that iterates from oldest file in directory."""
   yield from sorted(path.rglob('*'), key=lambda item: item.stat().st_mtime)
 
 
@@ -135,4 +135,15 @@ def archive_move(source_path: pathlib.Path, destination_path: pathlib.Path,
         logging.info('DRY RUN: not moving.')
         continue
       shutil.copy(item, destination_path / item.name)
+      item.unlink()
+
+
+def archive_delete(source_path: pathlib.Path, patterns: Iterable[str]) -> None:
+  """Archives items by deleting them."""
+  for pattern in patterns:
+    for item in source_path.glob(pattern):
+      logging.info('Archiving (deleting) %s.', item)
+      if _DRY_RUN.value or _DRY_RUN_LOOP.value:
+        logging.info('DRY RUN: not deleting.')
+        continue
       item.unlink()
