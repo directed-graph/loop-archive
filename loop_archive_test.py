@@ -1,4 +1,4 @@
-from typing import List
+from typing import Iterable, List
 from unittest import mock
 
 import dataclasses
@@ -20,31 +20,53 @@ import loop_archive_pb2
 class TestDirectoryTree:
   path: pathlib.Path
   generate_order: List[pathlib.Path]
+  generate_mtime: List[int]
 
   # Size in bytes.
   size: int
 
 
-def _generate_directory_tree(num_items: int = 16) -> TestDirectoryTree:
-  """Generates a directory tree with items for testing."""
-  test_directory_tree = TestDirectoryTree(
-      path=pathlib.Path(tempfile.mkdtemp()),
-      generate_order=[],
-      size=0,
-  )
-  start_time = 0
-  for i in range(num_items):
-    item = test_directory_tree.path / f'file_{i}'
-    with open(item, 'w') as stream:
-      test_directory_tree.size += stream.write('0')
+class DirectoryTreeContext:
+  """Context to generate a directory tree with items for testing."""
 
-    # Manually set time so each file has different mtimes.
-    os.utime(item, (0, start_time))
-    start_time += 1
+  def __init__(self, num_items: int = 16, suffixes: Iterable[str] = None):
+    """Initializes the TestDirectoryTree Context.
 
-    test_directory_tree.generate_order.append(item)
+    Args:
+      num_items: The number of items to generate.
+      suffixes: The suffix of each item. Determines the number of items to
+          generate if set; i.e. num_items will be ignored.
+    """
+    self.num_items = num_items
+    self.suffixes = suffixes
+    if self.suffixes is None:
+      self.suffixes = range(num_items)
 
-  return test_directory_tree
+  def __enter__(self) -> TestDirectoryTree:
+    self.temp_dir = tempfile.TemporaryDirectory()
+    test_directory_tree = TestDirectoryTree(
+        path=pathlib.Path(self.temp_dir.name),
+        generate_order=[],
+        generate_mtime=[],
+        size=0,
+    )
+    mtime = 0
+    for suffix in self.suffixes:
+      item = test_directory_tree.path / f'file{suffix}'
+      with open(item, 'w') as stream:
+        test_directory_tree.size += stream.write('0')
+
+      # Manually set time so each file has different mtimes.
+      os.utime(item, (0, mtime))
+      test_directory_tree.generate_order.append(item)
+      test_directory_tree.generate_mtime.append(mtime)
+
+      mtime += 1
+
+    return test_directory_tree
+
+  def __exit__(self, exec_type, exec_value, traceback) -> None:
+    self.temp_dir.cleanup()
 
 
 class LoopArchiveTest(parameterized.TestCase):
@@ -120,17 +142,17 @@ class LoopArchiveTest(parameterized.TestCase):
 
   def test_get_directory_size(self):
     """Ensures count is correct."""
-    directory_tree = _generate_directory_tree()
-    self.assertEqual(
-        loop_archive.get_directory_size(directory_tree.path),
-        directory_tree.size)
+    with DirectoryTreeContext() as directory_tree:
+      self.assertEqual(
+          loop_archive.get_directory_size(directory_tree.path),
+          directory_tree.size)
 
   def test_make_directory_iterator(self):
     """Ensures order is correct."""
-    directory_tree = _generate_directory_tree()
-    self.assertEqual(
-        list(loop_archive.make_directory_iterator(directory_tree.path)),
-        directory_tree.generate_order)
+    with DirectoryTreeContext() as directory_tree:
+      self.assertEqual(
+          list(loop_archive.make_directory_iterator(directory_tree.path)),
+          directory_tree.generate_order)
 
 
 if __name__ == '__main__':
