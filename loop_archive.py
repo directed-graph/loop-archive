@@ -1,6 +1,7 @@
 from typing import Iterable, Iterator, Optional
 
 import pathlib
+import shutil
 import subprocess
 import tempfile
 
@@ -11,6 +12,9 @@ import loop_archive_pb2
 
 _DRY_RUN = flags.DEFINE_bool('dry_run', False,
                              'Run everything in dry-run mode.')
+
+_DRY_RUN_LOOP = flags.DEFINE_bool('dry_run_loop', False,
+                                  'Run loop archival in dry-run mode.')
 
 
 def _run_process(args: Iterable[str]) -> subprocess.CompletedProcess:
@@ -119,3 +123,16 @@ def get_directory_size(path: pathlib.Path) -> int:
 def make_directory_iterator(path: pathlib.Path) -> Iterator[pathlib.Path]:
   """Returns an interator that iterates from oldest file in directory."""
   yield from sorted(path.rglob('*'), key=lambda item: item.stat().st_mtime)
+
+
+def archive_move(source_path: pathlib.Path, destination_path: pathlib.Path,
+                 patterns: Iterable[str]) -> None:
+  """Archives items by moving them to the destination."""
+  for pattern in patterns:
+    for item in source_path.glob(pattern):
+      logging.info('Archiving (moving) %s -> %s.', item, destination_path)
+      if _DRY_RUN.value or _DRY_RUN_LOOP.value:
+        logging.info('DRY RUN: not moving.')
+        continue
+      shutil.copy(item, destination_path / item.name)
+      item.unlink()

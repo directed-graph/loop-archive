@@ -154,6 +154,26 @@ class LoopArchiveTest(parameterized.TestCase):
           list(loop_archive.make_directory_iterator(directory_tree.path)),
           directory_tree.generate_order)
 
+  def test_archive_move(self):
+    """Tests archive moving items are done correctly."""
+    temp_output_dir = tempfile.TemporaryDirectory()
+    output_dir = pathlib.Path(temp_output_dir.name)
+
+    with DirectoryTreeContext(suffixes=[f'{i}.MP4' for i in range(5)] +
+                              [f'{i}.THM' for i in range(5)]) as directory_tree:
+      loop_archive.archive_move(
+          directory_tree.path, output_dir, patterns=['*.MP4'])
+      # Ensures the .MP4 files are moved.
+      self.assertCountEqual(
+          map(lambda p: p.name, output_dir.glob('*')),
+          map(lambda p: p.name, directory_tree.generate_order[:5]))
+      # Ensures the .THM files are not moved.
+      self.assertCountEqual(
+          map(lambda p: p.name, directory_tree.path.glob('*')),
+          map(lambda p: p.name, directory_tree.generate_order[5:]))
+
+    temp_output_dir.cleanup()
+
 
 if __name__ == '__main__':
   absltest.main()
