@@ -1,4 +1,4 @@
-from typing import Iterable, List
+from typing import Iterable, List, Tuple
 from unittest import mock
 
 import dataclasses
@@ -67,6 +67,27 @@ class DirectoryTreeContext:
 
   def __exit__(self, exec_type, exec_value, traceback) -> None:
     self.temp_dir.cleanup()
+
+
+def _generate_test_archive_inputs(
+    output_dir: pathlib.Path
+) -> Tuple[List[str], loop_archive_pb2.SourceSpec,
+           loop_archive_pb2.DestinationSpec]:
+  """Generates inputs for simulating archive."""
+  suffixes = [f'{i}.MP4' for i in range(5)] + [f'{i}.THM' for i in range(5)] + [
+      f'{i}.LRV' for i in range(5)
+  ]
+  source_spec = loop_archive_pb2.SourceSpec(
+      storage_device=loop_archive_pb2.SourceSpec.StorageDevice(
+          uuid='test-uuid'),
+      patterns=['*.MP4'],
+      delete_patterns=['*.THM', '*.LRV'],
+  )
+  destination_spec = loop_archive_pb2.DestinationSpec(
+      loop_size=2,
+      path=str(output_dir),
+  )
+  return suffixes, source_spec, destination_spec
 
 
 class LoopArchiveTest(parameterized.TestCase):
@@ -199,20 +220,9 @@ class LoopArchiveTest(parameterized.TestCase):
     temp_output_dir = tempfile.TemporaryDirectory()
     output_dir = pathlib.Path(temp_output_dir.name)
 
-    with DirectoryTreeContext(suffixes=[f'{i}.MP4' for i in range(5)] +
-                              [f'{i}.THM' for i in range(5)] +
-                              [f'{i}.LRV' for i in range(5)]) as directory_tree:
-      source_spec = loop_archive_pb2.SourceSpec(
-          storage_device=loop_archive_pb2.SourceSpec.StorageDevice(
-              uuid='test-uuid'),
-          patterns=['*.MP4'],
-          delete_patterns=['*.THM', '*.LRV'],
-      )
-      destination_spec = loop_archive_pb2.DestinationSpec(
-          loop_size=2,
-          path=str(output_dir),
-      )
-
+    suffixes, source_spec, destination_spec = _generate_test_archive_inputs(
+        output_dir)
+    with DirectoryTreeContext(suffixes=suffixes) as directory_tree:
       # Mock the _run_process operation so mount and umount are noops.
       with mock.patch.object(
           loop_archive, 'SourcePathContext',
@@ -225,6 +235,27 @@ class LoopArchiveTest(parameterized.TestCase):
         self.assertEmpty(list(directory_tree.path.glob('*')))
 
       temp_output_dir.cleanup()
+
+  def test_archive_dry_run(self):
+    """Simulates a dry-run and ensures nothing is deleted."""
+    temp_output_dir = tempfile.TemporaryDirectory()
+    output_dir = pathlib.Path(temp_output_dir.name)
+
+    suffixes, source_spec, destination_spec = _generate_test_archive_inputs(
+        output_dir)
+    with DirectoryTreeContext(suffixes=suffixes) as directory_tree:
+      # Mock the _run_process operation so mount and umount are noops.
+      with mock.patch.object(
+          loop_archive, 'SourcePathContext',
+          autospec=True) as mock_source_path_context:
+        mock_source_path_context.return_value = directory_tree.path
+        with flagsaver.flagsaver((loop_archive._DRY_RUN, True),):
+          loop_archive.archive(source_spec, destination_spec)
+        self.assertCountEqual(
+            list(directory_tree.path.glob('*')), directory_tree.generate_order)
+        self.assertEmpty(list(output_dir.glob('*')))
+
+    temp_output_dir.cleanup()
 
 
 if __name__ == '__main__':
