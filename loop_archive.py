@@ -5,10 +5,15 @@ import shutil
 import subprocess
 import tempfile
 
+from absl import app
 from absl import flags
 from absl import logging
+from google.protobuf import text_format
 
 import loop_archive_pb2
+
+_CONFIG_FILE = flags.DEFINE_string(
+    'config_file', None, 'Textproto containing a loop_archive.Config proto.')
 
 _DRY_RUN = flags.DEFINE_bool('dry_run', False,
                              'Run everything in dry-run mode.')
@@ -181,3 +186,22 @@ def archive(source_spec: loop_archive_pb2.SourceSpec,
     logging.info('Archive deleting %s for patterns %s.', source_path,
                  source_spec.delete_patterns)
     archive_delete(source_path, source_spec.delete_patterns)
+
+
+def main(argv) -> None:
+  del argv
+
+  if not _CONFIG_FILE.value:
+    raise ValueError('Must provide a config file.')
+
+  config = loop_archive_pb2.Config()
+  with open(_CONFIG_FILE.value) as stream:
+    text_format.Parse(stream.read(), config)
+
+  logging.info('Processing loop_archive.Config:\n%s', str(config))
+  for source_spec in config.source_specs:
+    archive(source_spec, config.destination_spec)
+
+
+if __name__ == '__main__':
+  app.run(main)
