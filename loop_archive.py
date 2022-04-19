@@ -22,6 +22,15 @@ _DRY_RUN_LOOP = flags.DEFINE_bool('dry_run_loop', False,
                                   'Run loop archival in dry-run mode.')
 
 
+class MountError(RuntimeError):
+  """Exception for errors when mounting.
+
+  We have a separate class so we can behave differently when the RuntimeErorr
+  is due to failure in mounting.
+  """
+  pass
+
+
 def _run_process(args: Iterable[str]) -> subprocess.CompletedProcess:
   """Runs the given argument and log results."""
   args = list(args)  # May be an iterator.
@@ -57,7 +66,7 @@ def mount(device_path: pathlib.Path,
   process = _run_process(args)
 
   if process.returncode != 0:
-    raise RuntimeError(f'Mount failed for {device_path} <- {mount_path}.')
+    raise MountError(f'Mount failed for {device_path} <- {mount_path}.')
 
 
 def umount(mount_path: pathlib.Path) -> None:
@@ -200,7 +209,10 @@ def main(argv) -> None:
 
   logging.info('Processing loop_archive.Config:\n%s', str(config))
   for source_spec in config.source_specs:
-    archive(source_spec, config.destination_spec)
+    try:
+      archive(source_spec, config.destination_spec)
+    except MountError as error:
+      logging.warning('Failed to mount; skipping: %s', error)
 
 
 if __name__ == '__main__':
