@@ -4,5 +4,5 @@ Description=Loop Archive job to perform archiving for %I
 [Service]
 Environment="LOOP_ARCHIVE_CONFIG=%I"
 Type=oneshot
-ExecCondition=test -f ${LOOP_ARCHIVE}
+ExecCondition=test -f ${LOOP_ARCHIVE_CONFIG}
 ExecStart=loop_archive.par ${LOOP_ARCHIVE_ARGUMENTS} --config_file ${LOOP_ARCHIVE_CONFIG}
