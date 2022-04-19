@@ -229,7 +229,7 @@ class LoopArchiveTest(parameterized.TestCase):
           autospec=True) as mock_source_path_context:
         mock_source_path_context.return_value = directory_tree.path
         loop_archive.archive(source_spec, destination_spec)
-        self.assertEqual(
+        self.assertCountEqual(
             list(map(lambda p: p.name, output_dir.glob('*'))),
             ['file3.MP4', 'file4.MP4'])
         self.assertEmpty(list(directory_tree.path.glob('*')))
